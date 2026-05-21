@@ -1,0 +1,24 @@
+{
+  "name": "btch-cli",
+  "version": "0.1.0",
+  "description": "Small CLI + playground page wrapping the btch-downloader npm package.",
+  "bin": {
+    "btch": "./cli.js",
+    "btch-mcp": "./mcp.mjs"
+  },
+  "main": "cli.js",
+  "scripts": {
+    "start": "node cli.js",
+    "mcp": "node mcp.mjs",
+    "web": "npx --yes http-server -p 8080 -c-1 ."
+  },
+  "engines": {
+    "node": ">=20.18.1"
+  },
+  "dependencies": {
+    "btch-downloader": "^6.0.29",
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^3.23.8"
+  },
+  "license": "MIT"
+}

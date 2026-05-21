@@ -1,0 +1,1014 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="btch — extract direct media URLs from 18 social platforms." />
+  <title>btch · media downloader</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='10' fill='%230b0d10'/%3E%3Cpath d='M22 18v28h10a8 8 0 0 0 0-16H22M30 30h7a8 8 0 0 1 0 16H22' fill='none' stroke='%232962ff' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
+
+  <style>
+    :root {
+      --bg:         #fafbfc;
+      --surface:    #ffffff;
+      --surface-2:  #f4f6f8;
+      --ink:        #0b0d10;
+      --ink-2:      #41464d;
+      --muted:      #6a727b;
+      --muted-2:    #9aa1aa;
+      --border:     #e3e6ea;
+      --border-2:   #d2d6dc;
+      --accent:     #2962ff;
+      --accent-2:   #1d4dd9;
+      --accent-soft:#e9f0ff;
+      --ok:         #15803d;
+      --err:        #c81e1e;
+      --warn:       #b45309;
+      --radius:     6px;
+
+      --sans: 'IBM Plex Sans', ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg:         #0b0d10;
+        --surface:    #11141a;
+        --surface-2:  #161a21;
+        --ink:        #e7eaee;
+        --ink-2:      #b6bcc4;
+        --muted:      #8b929b;
+        --muted-2:    #5b626a;
+        --border:     #21262e;
+        --border-2:   #2f353e;
+        --accent:     #5b8bff;
+        --accent-2:   #7aa2ff;
+        --accent-soft:#172139;
+        --ok:         #4ade80;
+        --err:        #f87171;
+        --warn:       #fbbf24;
+      }
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: var(--sans);
+      font-size: 14px;
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+      /* faint dot grid */
+      background-image: radial-gradient(circle, var(--border) 1px, transparent 1px);
+      background-size: 22px 22px;
+      background-position: 0 0;
+    }
+    @media (prefers-color-scheme: dark) {
+      body { background-image: radial-gradient(circle, rgba(255,255,255,.05) 1px, transparent 1px); }
+    }
+
+    button, input, select, textarea { font: inherit; color: inherit; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    ::selection { background: var(--accent-soft); color: var(--ink); }
+
+    /* ============================================================ */
+    /* SHELL                                                        */
+    /* ============================================================ */
+    .topbar {
+      position: sticky; top: 0; z-index: 30;
+      background: color-mix(in srgb, var(--bg) 92%, transparent);
+      backdrop-filter: saturate(180%) blur(8px);
+      border-bottom: 1px solid var(--border);
+    }
+    .topbar-inner {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 12px 24px;
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 16px;
+    }
+    .brand {
+      display: inline-flex; align-items: center; gap: 10px;
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: -.01em;
+      color: var(--ink);
+    }
+    .brand .logo {
+      width: 22px; height: 22px;
+      border-radius: 6px;
+      background: var(--ink);
+      color: var(--bg);
+      display: inline-grid; place-items: center;
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 700;
+      position: relative;
+    }
+    .brand .logo::after {
+      content: "";
+      position: absolute; inset: 4px 3px 4px auto;
+      width: 2px; background: var(--accent);
+      border-radius: 1px;
+    }
+    .topbar nav {
+      display: flex; align-items: center; gap: 4px;
+      font-family: var(--mono);
+      font-size: 12px;
+    }
+    .topbar nav a, .topbar nav span {
+      padding: 6px 10px;
+      border-radius: 5px;
+      color: var(--muted);
+      text-decoration: none;
+      transition: color .15s, background .15s;
+    }
+    .topbar nav a:hover { color: var(--ink); background: var(--surface-2); text-decoration: none; }
+    .pill {
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: var(--surface-2);
+      color: var(--muted);
+      border: 1px solid var(--border);
+      letter-spacing: 0;
+    }
+    .pill.live::before {
+      content: "";
+      display: inline-block;
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--ok);
+      margin-right: 6px;
+      vertical-align: 1px;
+      box-shadow: 0 0 0 0 currentColor;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(21,128,61,.5); }
+      70%{ box-shadow: 0 0 0 6px rgba(21,128,61,0); }
+      100%{ box-shadow: 0 0 0 0 rgba(21,128,61,0); }
+    }
+
+    .page {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 36px 24px 80px;
+    }
+
+    /* ----- HERO ---------------------------------------------- */
+    .hero {
+      display: flex; align-items: baseline; gap: 18px;
+      margin-bottom: 22px;
+      flex-wrap: wrap;
+    }
+    .hero h1 {
+      margin: 0;
+      font-family: var(--sans);
+      font-size: 30px;
+      line-height: 1.15;
+      font-weight: 600;
+      letter-spacing: -0.03em;
+    }
+    .hero h1 .accent {
+      color: var(--accent);
+      font-weight: 600;
+    }
+    .hero p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+      font-family: var(--mono);
+    }
+    .hero .crumbs {
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: .06em;
+      color: var(--muted-2);
+      text-transform: uppercase;
+      margin-bottom: 6px;
+      width: 100%;
+    }
+    .hero .crumbs .sep { color: var(--border-2); margin: 0 8px; }
+
+    /* ----- PANEL: input form ---------------------------------- */
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: 0 1px 2px rgba(11,13,16,.04);
+    }
+    .panel-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      font-family: var(--mono);
+      font-size: 11.5px;
+      color: var(--muted);
+      letter-spacing: .04em;
+    }
+    .panel-header .left::before {
+      content: "▸ ";
+      color: var(--accent);
+    }
+    .panel-header .right {
+      display: inline-flex; gap: 6px; align-items: center;
+      font-size: 11px;
+      color: var(--muted-2);
+    }
+    .panel-header .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--ok);
+      display: inline-block;
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 200px 1fr auto;
+      align-items: stretch;
+      gap: 0;
+    }
+    .input-cell {
+      position: relative;
+      display: flex; align-items: center;
+      padding: 0 14px;
+      border-right: 1px solid var(--border);
+      min-height: 56px;
+    }
+    .input-cell:last-of-type { border-right: 0; }
+    .input-cell .label {
+      position: absolute;
+      top: 8px; left: 14px;
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--muted-2);
+      pointer-events: none;
+    }
+    .input-cell .label .n {
+      color: var(--accent);
+      margin-right: 4px;
+    }
+    .input-cell input,
+    .input-cell select {
+      width: 100%;
+      border: 0;
+      outline: 0;
+      background: transparent;
+      padding: 18px 0 6px;
+      font-family: var(--mono);
+      font-size: 14px;
+      color: var(--ink);
+    }
+    .input-cell select {
+      appearance: none;
+      cursor: pointer;
+      padding-right: 22px;
+      background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><path d='M2 4l4 4 4-4' fill='none' stroke='%236a727b' stroke-width='1.6' stroke-linecap='round'/></svg>");
+      background-repeat: no-repeat;
+      background-position: right 0 center;
+    }
+    .input-cell input::placeholder { color: var(--muted-2); }
+    .input-cell:focus-within .label { color: var(--accent); }
+    .input-cell:focus-within { background: var(--accent-soft); }
+
+    .btn-fetch {
+      appearance: none;
+      border: 0;
+      background: var(--accent);
+      color: #fff;
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: .04em;
+      padding: 0 24px;
+      cursor: pointer;
+      display: inline-flex; align-items: center; gap: 8px;
+      transition: background .15s;
+      min-width: 130px;
+      justify-content: center;
+      border-radius: 0;
+    }
+    .btn-fetch:hover:not(:disabled) { background: var(--accent-2); }
+    .btn-fetch:disabled { background: var(--muted-2); cursor: not-allowed; opacity: .8; }
+    .btn-fetch svg { width: 14px; height: 14px; }
+    .btn-fetch.busy svg { display: none; }
+    .btn-fetch.busy::before {
+      content: "";
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      border: 2px solid currentColor;
+      border-top-color: transparent;
+      animation: spin .8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ----- Quick chips --------------------------------------- */
+    .chips {
+      display: flex; flex-wrap: wrap; gap: 6px;
+      padding: 12px 14px;
+      border-top: 1px solid var(--border);
+      background: var(--surface-2);
+    }
+    .chips .lbl {
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--muted-2);
+      align-self: center;
+      margin-right: 4px;
+    }
+    .chip {
+      font-family: var(--mono);
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 4px;
+      background: var(--surface);
+      color: var(--ink-2);
+      border: 1px solid var(--border);
+      cursor: pointer;
+      transition: all .12s;
+    }
+    .chip:hover    { border-color: var(--accent); color: var(--accent); }
+    .chip.active   { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+    /* ----- Status line --------------------------------------- */
+    .status {
+      margin-top: 14px;
+      padding: 10px 14px;
+      font-family: var(--mono);
+      font-size: 12.5px;
+      color: var(--ink-2);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      display: flex; align-items: center; gap: 10px;
+      min-height: 40px;
+    }
+    .status::before {
+      content: "$";
+      color: var(--muted-2);
+      font-weight: 600;
+    }
+    .status .key {
+      font-weight: 600;
+      color: var(--ink);
+    }
+    .status .ms { color: var(--muted); }
+    .status.busy::before { content: ">_"; color: var(--accent); animation: blink 1.1s steps(2, end) infinite; }
+    .status.ok::before   { content: "✓"; color: var(--ok); }
+    .status.err::before  { content: "✗"; color: var(--err); }
+    @keyframes blink { 50% { opacity: 0; } }
+
+    /* ----- Section heading ----------------------------------- */
+    .section-head {
+      display: flex; align-items: baseline; gap: 12px;
+      margin: 36px 0 14px;
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .section-head h2 {
+      margin: 0;
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--ink);
+    }
+    .section-head .line {
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+    .section-head .meta { color: var(--muted-2); }
+
+    /* ----- Results ------------------------------------------- */
+    .results-empty {
+      padding: 40px 18px;
+      text-align: center;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 12.5px;
+      border: 1px dashed var(--border-2);
+      border-radius: var(--radius);
+      background: var(--surface);
+    }
+    .results-empty::before {
+      content: "//";
+      color: var(--muted-2);
+      margin-right: 8px;
+    }
+
+    .results {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 10px;
+    }
+    .item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      display: flex; flex-direction: column;
+      transition: border-color .15s, transform .15s;
+    }
+    .item:hover { border-color: var(--border-2); }
+    .item .thumb {
+      aspect-ratio: 4/3;
+      background:
+        linear-gradient(135deg, var(--surface-2) 25%, transparent 25%) -10px 0/20px 20px,
+        linear-gradient(225deg, var(--surface-2) 25%, transparent 25%) -10px 0/20px 20px,
+        var(--surface);
+      display: grid; place-items: center;
+      color: var(--muted-2);
+      font-family: var(--mono);
+      font-size: 18px;
+      overflow: hidden;
+      position: relative;
+      border-bottom: 1px solid var(--border);
+    }
+    .item .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .item .idx {
+      position: absolute;
+      top: 6px; left: 8px;
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--ink);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 1px 6px;
+      border-radius: 3px;
+      letter-spacing: .04em;
+    }
+    .item .kind {
+      position: absolute;
+      top: 6px; right: 8px;
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      padding: 1px 7px;
+      background: var(--ink);
+      color: var(--bg);
+      border-radius: 3px;
+    }
+    .item .body {
+      padding: 10px 12px 12px;
+      display: flex; flex-direction: column; gap: 8px;
+      flex: 1;
+    }
+    .item .title {
+      font-size: 13px;
+      line-height: 1.4;
+      color: var(--ink);
+      word-break: break-word;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .item .actions {
+      display: flex; gap: 5px; flex-wrap: wrap;
+      margin-top: auto;
+    }
+    .btn {
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 4px 9px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--ink-2);
+      cursor: pointer;
+      text-decoration: none;
+      transition: all .12s;
+      letter-spacing: .04em;
+    }
+    .btn:hover { border-color: var(--accent); color: var(--accent); text-decoration: none; }
+    .btn.primary {
+      background: var(--ink);
+      color: var(--bg);
+      border-color: var(--ink);
+    }
+    .btn.primary:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+    /* ----- Raw JSON drawer ----------------------------------- */
+    .raw {
+      margin-top: 14px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      overflow: hidden;
+    }
+    .raw summary {
+      list-style: none;
+      cursor: pointer;
+      padding: 10px 14px;
+      font-family: var(--mono);
+      font-size: 11.5px;
+      letter-spacing: .04em;
+      color: var(--muted);
+      display: flex; align-items: center; gap: 10px;
+      background: var(--surface-2);
+      border-bottom: 1px solid transparent;
+    }
+    .raw[open] summary { border-color: var(--border); }
+    .raw summary::-webkit-details-marker { display: none; }
+    .raw summary::before {
+      content: "▸";
+      color: var(--accent);
+      transition: transform .15s;
+    }
+    .raw[open] summary::before { transform: rotate(90deg); }
+    .raw pre {
+      margin: 0;
+      padding: 14px 16px;
+      font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.55;
+      color: var(--ink-2);
+      overflow: auto;
+      max-height: 460px;
+    }
+
+    /* ----- Catalogue (sample URLs) --------------------------- */
+    .catalogue {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      overflow: hidden;
+    }
+    .cat-row {
+      display: grid;
+      grid-template-columns: 56px 180px 1fr 72px;
+      gap: 14px;
+      align-items: center;
+      padding: 9px 14px;
+      border-top: 1px solid var(--border);
+      font-family: var(--mono);
+      font-size: 12.5px;
+      cursor: pointer;
+      transition: background .12s;
+    }
+    .cat-row:first-child { border-top: 0; }
+    .cat-row:hover       { background: var(--surface-2); }
+    .cat-row .idx     { color: var(--muted-2); font-size: 11px; }
+    .cat-row .name    { color: var(--ink); font-weight: 500; }
+    .cat-row .fn      { color: var(--accent); }
+    .cat-row .sample  { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .cat-row .badge   {
+      justify-self: end;
+      font-size: 10px;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--muted-2);
+      border: 1px solid var(--border);
+      padding: 2px 8px;
+      border-radius: 3px;
+    }
+    .cat-row .badge.cn { color: var(--accent); border-color: var(--accent); }
+
+    /* ----- Footer ------------------------------------------- */
+    footer {
+      margin-top: 40px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+      font-family: var(--mono);
+      font-size: 11.5px;
+      color: var(--muted);
+      display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+    }
+    footer a { color: var(--muted); }
+    footer a:hover { color: var(--ink); }
+
+    /* ============================================================ */
+    /* RESPONSIVE                                                   */
+    /* ============================================================ */
+    @media (max-width: 760px) {
+      .topbar nav a { display: none; }
+      .topbar nav a.always { display: inline-flex; }
+      .form-row { grid-template-columns: 1fr; }
+      .input-cell { border-right: 0; border-bottom: 1px solid var(--border); }
+      .btn-fetch { padding: 14px; }
+      .cat-row { grid-template-columns: 36px 1fr 72px; gap: 10px; }
+      .cat-row .sample { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ============================================================ -->
+  <!-- TOPBAR                                                       -->
+  <!-- ============================================================ -->
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <span class="logo">b</span>
+        btch
+        <span class="pill">v<span id="libVersion">6.0.29</span></span>
+      </div>
+      <nav>
+        <span class="pill live">live</span>
+        <a href="https://www.npmjs.com/package/btch-downloader" target="_blank" rel="noopener" class="always">npm ↗</a>
+        <a href="https://github.com/hostinger-bot/btch-downloader" target="_blank" rel="noopener">github ↗</a>
+        <a href="https://github.com/hostinger-bot/btch-downloader/issues" target="_blank" rel="noopener">issues ↗</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="page">
+
+    <!-- HERO -->
+    <section class="hero">
+      <div class="crumbs">SYSTEM <span class="sep">/</span> btch-downloader <span class="sep">/</span> playground</div>
+      <h1>Media downloader <span class="accent">·</span> direct URL extractor</h1>
+      <p>// 18 platforms · runs in your browser · no server, no tracking.</p>
+    </section>
+
+    <!-- INPUT PANEL -->
+    <div class="panel" id="panel">
+      <div class="panel-header">
+        <span class="left">input</span>
+        <span class="right"><span class="dot" id="readyDot"></span><span id="readyText">ready</span></span>
+      </div>
+
+      <div class="form-row">
+        <label class="input-cell" for="platform">
+          <span class="label"><span class="n">01</span>Platform</span>
+          <select id="platform" aria-label="Platform">
+            <option value="auto">Auto-detect</option>
+          </select>
+        </label>
+        <label class="input-cell" for="url">
+          <span class="label"><span class="n">02</span>URL · Query</span>
+          <input id="url" type="text" autocomplete="off" spellcheck="false" placeholder="https://…  or  a search query" />
+        </label>
+        <button id="fetchBtn" class="btn-fetch" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+          fetch
+        </button>
+      </div>
+
+      <div class="chips">
+        <span class="lbl">quick:</span>
+        <span id="chips" style="display:contents;"></span>
+      </div>
+    </div>
+
+    <!-- STATUS -->
+    <div class="status" id="status">
+      <span class="key">idle</span>
+      <span>waiting for input — paste a link and hit fetch</span>
+    </div>
+
+    <!-- RESULTS -->
+    <div class="section-head">
+      <h2>Results</h2>
+      <span class="line"></span>
+      <span class="meta" id="resultsMeta">empty</span>
+    </div>
+
+    <div class="results-empty" id="resultsEmpty">no findings yet — submit a URL above</div>
+    <div class="results" id="results" hidden></div>
+    <details class="raw" id="rawWrap" hidden>
+      <summary>raw API response</summary>
+      <pre id="raw"></pre>
+    </details>
+
+    <!-- CATALOGUE -->
+    <div class="section-head">
+      <h2>Catalogue</h2>
+      <span class="line"></span>
+      <span class="meta">18 platforms · click any row to load its sample</span>
+    </div>
+    <div class="catalogue" id="catalogue"></div>
+
+    <footer>
+      <span>// btch-downloader · MIT</span>
+      <span>built on <a href="https://www.npmjs.com/package/btch-downloader" target="_blank" rel="noopener">npm:btch-downloader</a></span>
+    </footer>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/btch-downloader/dist/browser/index.min.js"></script>
+  <script>
+    // ------------------------------------------------------------------
+    // Platform registry
+    // ------------------------------------------------------------------
+    const PLATFORMS = [
+      { id: "instagram",   label: "Instagram",      fn: "igdl",       kind: "url",   region: "us", regex: /instagram\.com\/(p|reel|tv)\//i,                                              sample: "https://www.instagram.com/reel/DKPtUL_S9Nh/" },
+      { id: "tiktok",      label: "TikTok",         fn: "ttdl",       kind: "url",   region: "us", regex: /(tiktok\.com\/@[\w.-]+\/video\/\d+|vm\.tiktok\.com|vt\.tiktok\.com)/i,        sample: "https://www.tiktok.com/@omagadsus/video/7025456384175017243" },
+      { id: "facebook",    label: "Facebook",       fn: "fbdown",     kind: "url",   region: "us", regex: /(facebook\.com\/(?:watch\/?\?v=|reel\/|share\/?|sharer\.php\?u=|photo\.php\?fbid=|video\.php\?v=|\w+\/(?:videos|posts)\/)|fb\.watch\/)/i, sample: "https://www.facebook.com/watch/?v=1393572814172251" },
+      { id: "twitter",     label: "Twitter / X",    fn: "twitter",    kind: "url",   region: "us", regex: /(twitter\.com|x\.com)\/\w+\/status\/\d+/i,                                    sample: "https://twitter.com/gofoodindonesia/status/1229369819511709697" },
+      { id: "youtube",     label: "YouTube",        fn: "youtube",    kind: "url",   region: "us", regex: /(youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/|youtube\.com\/embed\/)[\w-]+/i, sample: "https://youtu.be/C8mJ8943X80" },
+      { id: "mediafire",   label: "MediaFire",      fn: "mediafire",  kind: "url",   region: "us", regex: /mediafire\.com\/(file|download|view)\//i,                                     sample: "https://www.mediafire.com/file/941xczxhn27qbby/GBWA_V12.25FF-By.SamMods-.apk/file" },
+      { id: "capcut",      label: "CapCut",         fn: "capcut",     kind: "url",   region: "us", regex: /capcut\.com\/(template-detail\/\d+|@[\w.-]+\/video\/[\w-]+|t\/[\w-]+|\d+)/i,  sample: "https://www.capcut.com/template-detail/7299286607478181121" },
+      { id: "gdrive",      label: "Google Drive",   fn: "gdrive",     kind: "url",   region: "us", regex: /drive\.google\.com\/(file\/d\/|open\?id=)[\w-]+/i,                            sample: "https://drive.google.com/file/d/1thDYWcS5p5FFhzTpTev7RUv0VFnNQyZ4/view" },
+      { id: "pinterest",   label: "Pinterest",      fn: "pinterest",  kind: "any",   region: "us", regex: /(pinterest\.com\/pin\/\d+|pin\.it\/[\w]+)/i,                                   sample: "https://pin.it/4CVodSq" },
+      { id: "douyin",      label: "Douyin 抖音",    fn: "douyin",     kind: "url",   region: "cn", regex: /(v\.douyin\.com\/\w+|douyin\.com\/\S+)/i,                                     sample: "https://v.douyin.com/ikq8axJ/" },
+      { id: "xiaohongshu", label: "Xiaohongshu 小红书", fn: "xiaohongshu", kind: "url", region: "cn", regex: /(xiaohongshu\.com\/discovery\/item\/\d+|xhslink\.com\/[\w]+)/i,             sample: "http://xhslink.com/o/21DKXV988zp" },
+      { id: "snackvideo",  label: "SnackVideo",     fn: "snackvideo", kind: "url",   region: "us", regex: /snackvideo\.com\/@[\w.-]+\/video\/\d+|s\.snackvideo\.com\/\w+/i,             sample: "https://s.snackvideo.com/p/j9jKr9dR" },
+      { id: "cocofun",     label: "Cocofun",        fn: "cocofun",    kind: "url",   region: "us", regex: /(icocofun|cocofun)\.com\/(share\/)?post\/\d+/i,                              sample: "https://www.icocofun.com/share/post/379250110809" },
+      { id: "spotify",     label: "Spotify",        fn: "spotify",    kind: "url",   region: "us", regex: /(open\.spotify\.com\/(track|album|playlist|episode)\/\w+|spotify\.link\/\w+)/i, sample: "https://open.spotify.com/track/3zakx7RAwdkUQlOoQ7SJRt" },
+      { id: "soundcloud",  label: "SoundCloud",     fn: "soundcloud", kind: "url",   region: "us", regex: /soundcloud\.com\/[\w.-]+\/[\w.-]+/i,                                          sample: "https://soundcloud.com/issabella-marchelina/sisa-rasa-mahalini-official-audio" },
+      { id: "threads",     label: "Threads",        fn: "threads",    kind: "url",   region: "us", regex: /threads\.net\/@[\w.-]+\/post\/[\w_-]+/i,                                      sample: "https://www.threads.net/@cindyyuvia/post/C_Nqx3khgkI/" },
+      { id: "kuaishou",    label: "Kuaishou 快手", fn: "kuaishou",   kind: "url",   region: "cn", regex: /(v\.kuaishou\.com\/\w+|kuaishou\.com\/(?:short-video|video|share)\/\w+)/i,    sample: "https://v.kuaishou.com/JT195ZHT" },
+      { id: "yts",         label: "YouTube Search", fn: "yts",        kind: "query", region: "us", regex: null,                                                                          sample: "Somewhere Only We Know" },
+    ];
+
+    const $ = (id) => document.getElementById(id);
+    const platformSel  = $("platform");
+    const urlInput     = $("url");
+    const fetchBtn     = $("fetchBtn");
+    const statusEl     = $("status");
+    const resultsEl    = $("results");
+    const resultsEmpty = $("resultsEmpty");
+    const resultsMeta  = $("resultsMeta");
+    const chipsEl      = $("chips");
+    const cataEl       = $("catalogue");
+    const rawEl        = $("raw");
+    const rawWrap      = $("rawWrap");
+
+    // ----- populate platform select
+    for (const p of PLATFORMS) {
+      const opt = document.createElement("option");
+      opt.value = p.id;
+      opt.textContent = p.label;
+      platformSel.appendChild(opt);
+    }
+
+    // ----- quick chips
+    const QUICK = ["instagram", "tiktok", "youtube", "twitter", "douyin", "xiaohongshu", "spotify", "yts"];
+    for (const id of QUICK) {
+      const p = PLATFORMS.find((x) => x.id === id);
+      if (!p) continue;
+      const b = document.createElement("button");
+      b.className = "chip";
+      b.type = "button";
+      b.textContent = p.label.replace(/\s\S+$/, "");
+      b.dataset.platform = id;
+      b.addEventListener("click", () => {
+        platformSel.value = id;
+        urlInput.placeholder = placeholderFor(id);
+        markActive();
+        urlInput.focus();
+      });
+      chipsEl.appendChild(b);
+    }
+    function markActive() {
+      const cur = platformSel.value;
+      for (const b of chipsEl.children) {
+        if (b.classList) b.classList.toggle("active", b.dataset.platform === cur);
+      }
+    }
+    platformSel.addEventListener("change", () => {
+      urlInput.placeholder = placeholderFor(platformSel.value);
+      markActive();
+    });
+
+    // ----- catalogue rows
+    PLATFORMS.forEach((p, i) => {
+      const row = document.createElement("div");
+      row.className = "cat-row";
+      row.innerHTML = `
+        <span class="idx">№ ${String(i + 1).padStart(2, "0")}</span>
+        <span class="name">${escapeHtml(p.label)} <span class="fn">${p.fn}()</span></span>
+        <span class="sample">${escapeHtml(p.sample)}</span>
+        <span class="badge ${p.region === 'cn' ? 'cn' : ''}">${p.region}</span>`;
+      row.addEventListener("click", () => {
+        platformSel.value = p.id;
+        urlInput.value = p.sample;
+        urlInput.placeholder = placeholderFor(p.id);
+        markActive();
+        urlInput.focus();
+        urlInput.scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+      cataEl.appendChild(row);
+    });
+
+    function placeholderFor(id) {
+      if (id === "auto") return "https://…  or  a search query";
+      const p = PLATFORMS.find((x) => x.id === id);
+      if (!p) return "Paste a URL…";
+      if (p.kind === "query") return `query, e.g. "${p.sample}"`;
+      return `${p.label.replace(/\s\S+$/, "")} URL, e.g. ${p.sample.slice(0, 56)}…`;
+    }
+
+    function isHttpUrl(s) {
+      try { const u = new URL(s); return u.protocol === "http:" || u.protocol === "https:"; } catch { return false; }
+    }
+    function detect(value, selected) {
+      if (selected !== "auto") return selected;
+      if (isHttpUrl(value)) {
+        for (const p of PLATFORMS) if (p.regex && p.regex.test(value)) return p.id;
+        return "pinterest";
+      }
+      return "yts";
+    }
+
+    function setStatus({ key, text, kind, busy }) {
+      statusEl.className = "status" + (busy ? " busy" : "") + (kind ? " " + kind : "");
+      statusEl.innerHTML = `<span class="key">${escapeHtml(key)}</span><span>${escapeHtml(text)}</span>`;
+    }
+
+    function escapeHtml(s) {
+      return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    }
+
+    // ------------------------------------------------------------------
+    // Media harvesting
+    // ------------------------------------------------------------------
+    const MEDIA_KEYS = [
+      "video", "videoUrl", "video_url", "mp4", "videoHd", "video_hd", "hd", "sd", "no_watermark", "nowatermark", "nowm", "play", "playAddr", "play_addr",
+      "audio", "audioUrl", "audio_url", "music", "mp3",
+      "image", "imageUrl", "image_url", "photo", "thumbnail", "thumb", "cover",
+      "url", "downloadUrl", "download", "link",
+    ];
+    const TITLE_KEYS = ["title", "desc", "description", "caption", "name", "filename"];
+
+    function pickFirst(obj, keys) {
+      if (!obj || typeof obj !== "object") return undefined;
+      for (const k of keys) if (obj[k] != null && obj[k] !== "") return obj[k];
+      return undefined;
+    }
+    function looksLikeMediaUrl(s) { return typeof s === "string" && /^https?:\/\//i.test(s); }
+    function guessKind(url, hint) {
+      if (hint && /audio|mp3|music/i.test(hint)) return "audio";
+      if (hint && /image|photo|thumb|cover/i.test(hint)) return "image";
+      if (hint && /video|mp4|play|hd|sd|nowm|no_watermark/i.test(hint)) return "video";
+      if (/\.(mp4|mov|webm|m4v)(\?|$)/i.test(url)) return "video";
+      if (/\.(mp3|m4a|aac|ogg|wav|flac)(\?|$)/i.test(url)) return "audio";
+      if (/\.(jpe?g|png|gif|webp|bmp|avif)(\?|$)/i.test(url)) return "image";
+      return "file";
+    }
+    function harvest(node, acc, pathStr) {
+      if (node == null) return;
+      if (Array.isArray(node)) { node.forEach((v, i) => harvest(v, acc, `${pathStr}[${i}]`)); return; }
+      if (typeof node === "object") {
+        const url = pickFirst(node, MEDIA_KEYS);
+        if (looksLikeMediaUrl(url)) {
+          const title = pickFirst(node, TITLE_KEYS) || pathStr || "item";
+          const thumb = pickFirst(node, ["thumbnail", "thumb", "cover", "image"]);
+          acc.push({ url, title: String(title), thumb: looksLikeMediaUrl(thumb) ? thumb : null, kind: guessKind(url) });
+        }
+        for (const [k, v] of Object.entries(node)) {
+          if (looksLikeMediaUrl(v) && MEDIA_KEYS.includes(k)) {
+            acc.push({ url: v, title: k, thumb: null, kind: guessKind(v, k) });
+          } else if (typeof v === "object") {
+            harvest(v, acc, pathStr ? `${pathStr}.${k}` : k);
+          }
+        }
+      }
+    }
+    function dedupe(items) {
+      const seen = new Set();
+      return items.filter((it) => (seen.has(it.url) ? false : (seen.add(it.url), true)));
+    }
+
+    function kindGlyph(kind) {
+      return { video: "▶", audio: "♪", image: "▤", file: "◆" }[kind] || "◆";
+    }
+
+    function renderResults(data) {
+      resultsEl.innerHTML = "";
+      const harvested = [];
+      harvest(data, harvested, "");
+      const all = dedupe(harvested);
+
+      if (!all.length) {
+        resultsEl.hidden = true;
+        resultsEmpty.hidden = false;
+        resultsEmpty.textContent = "no direct media URL detected — see raw response below";
+        resultsMeta.textContent = "0 items";
+        return;
+      }
+
+      resultsEmpty.hidden = true;
+      resultsEl.hidden = false;
+      resultsMeta.textContent = `${all.length} item${all.length === 1 ? '' : 's'}`;
+
+      all.forEach((it, i) => {
+        const el = document.createElement("article");
+        el.className = "item";
+        const thumb = it.thumb || (it.kind === "image" ? it.url : null);
+        el.innerHTML = `
+          <div class="thumb">
+            <span class="idx">№${String(i + 1).padStart(2, "0")}</span>
+            <span class="kind">${escapeHtml(it.kind)}</span>
+            ${thumb ? `<img loading="lazy" src="${escapeHtml(thumb)}" alt="">` : kindGlyph(it.kind)}
+          </div>
+          <div class="body">
+            <div class="title">${escapeHtml(String(it.title).slice(0, 140))}</div>
+            <div class="actions">
+              <a class="btn primary" href="${escapeHtml(it.url)}" target="_blank" rel="noopener" download>save</a>
+              <a class="btn" href="${escapeHtml(it.url)}" target="_blank" rel="noopener">open</a>
+              <button class="btn copyBtn" type="button" data-url="${escapeHtml(it.url)}">copy</button>
+            </div>
+          </div>`;
+        resultsEl.appendChild(el);
+      });
+    }
+
+    resultsEl.addEventListener("click", async (e) => {
+      const btn = e.target.closest(".copyBtn");
+      if (!btn) return;
+      try {
+        await navigator.clipboard.writeText(btn.dataset.url);
+        const t = btn.textContent;
+        btn.textContent = "copied ✓";
+        setTimeout(() => (btn.textContent = t), 1100);
+      } catch {
+        setStatus({ key: "error", text: "clipboard blocked by browser", kind: "err" });
+      }
+    });
+
+    async function run() {
+      const value = urlInput.value.trim();
+      if (!value) {
+        setStatus({ key: "error", text: "enter a URL or query", kind: "err" });
+        urlInput.focus();
+        return;
+      }
+      const btch = window.btch;
+      if (!btch) {
+        setStatus({ key: "error", text: "btch-downloader failed to load from CDN", kind: "err" });
+        return;
+      }
+      const platform = detect(value, platformSel.value);
+      const p = PLATFORMS.find((x) => x.id === platform);
+      const fn = p && btch[p.fn];
+      if (!fn) {
+        setStatus({ key: "error", text: `unsupported platform: ${platform}`, kind: "err" });
+        return;
+      }
+
+      fetchBtn.disabled = true;
+      fetchBtn.classList.add("busy");
+      resultsEl.hidden = true;
+      resultsEl.innerHTML = "";
+      resultsEmpty.hidden = false;
+      resultsEmpty.textContent = "fetching…";
+      rawWrap.hidden = true;
+      resultsMeta.textContent = "in flight";
+      setStatus({ key: p.label.replace(/\s\S+$/, ''), text: "reaching upstream…", busy: true });
+
+      const started = performance.now();
+      try {
+        const data = await fn(value);
+        const ms = Math.round(performance.now() - started);
+        rawEl.textContent = JSON.stringify(data, null, 2);
+        rawWrap.hidden = false;
+        renderResults(data);
+        setStatus({ key: "done", text: `${p.label.replace(/\s\S+$/, '')} · ${ms} ms`, kind: "ok" });
+      } catch (err) {
+        setStatus({ key: "error", text: (err && err.message) ? err.message : String(err), kind: "err" });
+        rawEl.textContent = String(err && err.stack ? err.stack : err);
+        rawWrap.hidden = false;
+        resultsEmpty.textContent = "upstream request failed — see raw response below";
+        resultsMeta.textContent = "failed";
+      } finally {
+        fetchBtn.disabled = false;
+        fetchBtn.classList.remove("busy");
+      }
+    }
+
+    fetchBtn.addEventListener("click", run);
+    urlInput.addEventListener("keydown", (e) => { if (e.key === "Enter") run(); });
+
+    // Library version probe
+    window.addEventListener("load", () => {
+      const v = window.btch && (window.btch.version || (window.btch.default && window.btch.default.version));
+      if (v) $("libVersion").textContent = v;
+    });
+
+    // Deep-linkable: ?url=…&platform=…
+    (function fromQuery() {
+      const q = new URLSearchParams(location.search);
+      const u = q.get("url") || q.get("q");
+      const p = q.get("platform");
+      if (p) platformSel.value = p;
+      urlInput.placeholder = placeholderFor(platformSel.value);
+      markActive();
+      if (u) { urlInput.value = u; run(); }
+    })();
+  </script>
+</body>
+</html>
