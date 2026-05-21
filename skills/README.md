@@ -5,6 +5,7 @@ Claude Code skill packages that wrap the tools in this repo. Each subdirectory i
 | Skill | What it does |
 |-------|--------------|
 | [`btch-download`](./btch-download/SKILL.md) | Download media from 19 social-media platforms via the `btch` CLI. |
+| [`btch-transcribe`](./btch-transcribe/SKILL.md) | Extract a transcript / .srt subtitles from a URL or local file via ffmpeg + local Whisper. |
 
 ## Install into Claude Code
 

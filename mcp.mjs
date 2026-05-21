@@ -28,8 +28,14 @@ const {
   callPlatform,
   harvestMedia,
   dedupe,
+  downloadOne,
   downloadMany,
+  sanitize,
+  guessExt,
 } = require('./lib/btch.js');
+const { transcribeFile, toSrt } = require('./lib/transcribe.js');
+const fs = require('node:fs');
+const os = require('node:os');
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -214,6 +220,93 @@ server.tool(
         failed: fail,
       },
       isError: ok.length === 0,
+    };
+  }
+);
+
+// ---------------------------------------------------------------------------
+// transcribe_media
+// ---------------------------------------------------------------------------
+function isLocalFile(s) {
+  try { return fs.existsSync(s) && fs.statSync(s).isFile(); }
+  catch { return false; }
+}
+
+async function resolveMediaForTranscript(input, platformOverride) {
+  if (isLocalFile(input)) return { localPath: input, downloaded: false };
+  const platformId = platformOverride || detect(input);
+  const data = await callPlatform(platformId, input);
+  const media = dedupe(harvestMedia(data, [], ''));
+  if (!media.length) throw new Error(`no downloadable media URL in the ${platformId} response`);
+  const primary = media.find((m) => m.kind === 'video') || media.find((m) => m.kind === 'audio') || media[0];
+  const outDir = path.join(os.tmpdir(), 'btch-transcribe-src', platformId);
+  fs.mkdirSync(outDir, { recursive: true });
+  const localPath = path.join(outDir, `${sanitize(primary.title || 'media')}-${Date.now()}.${guessExt(primary.url)}`);
+  await downloadOne(primary.url, localPath);
+  return { localPath, downloaded: true, platform: platformId };
+}
+
+const transcribeSchema = {
+  input: z.string().min(1).describe('A URL on any supported platform, or a local video/audio file path.'),
+  platform: z.enum(PLATFORM_IDS).optional().describe('Override platform; omit to auto-detect.'),
+  language: z.string().optional().describe('ISO 639-1 language hint for Whisper (e.g. "en", "zh", "ja").'),
+  model: z.string().optional().describe('Whisper model: tiny | base | small | medium | large. Default: base.'),
+  task: z.enum(['transcribe', 'translate']).optional().describe('"translate" → forces English output.'),
+  format: z.enum(['text', 'srt', 'json']).optional().default('text').describe('Return format. Default: text.'),
+  keep_audio: z.boolean().optional().default(false).describe('Keep the extracted .mp3 on disk.'),
+};
+
+server.tool(
+  'transcribe_media',
+  'Local transcript extraction. Downloads a URL (or accepts a local file path), extracts audio via ffmpeg, then runs a local Whisper CLI (no API key). Requires ffmpeg and one of: openai-whisper / whisper-ctranslate2.',
+  transcribeSchema,
+  async ({ input, platform, language, model, task, format = 'text', keep_audio = false }) => {
+    let resolved;
+    try {
+      resolved = await resolveMediaForTranscript(input, platform);
+    } catch (err) {
+      return asError(`Resolve failed: ${err && err.message ? err.message : err}`);
+    }
+
+    let result;
+    try {
+      result = await transcribeFile(resolved.localPath, {
+        language, model, task, keepAudio: keep_audio,
+      });
+    } catch (err) {
+      return asError(`Whisper failed: ${err && err.message ? err.message : err}`);
+    }
+
+    let body;
+    if (format === 'srt')        body = toSrt(result.segments);
+    else if (format === 'json')  body = JSON.stringify(result, null, 2);
+    else                          body = result.text;
+
+    const lines = [
+      `Source: ${input}`,
+      resolved.platform ? `Platform: ${resolved.platform}` : null,
+      `Local file: ${resolved.localPath}`,
+      `Model: ${result.model}  ·  CLI: ${result.cli}`,
+      result.language ? `Language: ${result.language}` : null,
+      '',
+      `── transcript (${format}) ──`,
+      body,
+    ].filter(Boolean).join('\n');
+
+    return {
+      content: [{ type: 'text', text: lines }],
+      structuredContent: {
+        source: input,
+        platform: resolved.platform,
+        local_path: resolved.localPath,
+        format,
+        body,
+        text: result.text,
+        segments: result.segments,
+        language: result.language,
+        model: result.model,
+        cli: result.cli,
+      },
     };
   }
 );
