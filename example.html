@@ -724,6 +724,29 @@
       display: flex; gap: 8px; flex-wrap: wrap;
     }
 
+    /* ----- file:// warning banner ---------------------------- */
+    .file-protocol-banner {
+      display: none;
+      margin: 12px 0 18px;
+      padding: 12px 16px;
+      border: 1px solid var(--err);
+      border-radius: var(--radius);
+      background: color-mix(in srgb, var(--err) 8%, var(--surface));
+      color: var(--ink);
+      font-family: var(--mono);
+      font-size: 12.5px;
+      line-height: 1.55;
+    }
+    .file-protocol-banner.active { display: block; }
+    .file-protocol-banner b { color: var(--err); }
+    .file-protocol-banner code {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-size: 11.5px;
+    }
+
     /* ----- Raw JSON drawer ----------------------------------- */
     .raw {
       margin-top: 14px;
@@ -856,6 +879,12 @@
       <h1>Media downloader <span class="accent">·</span> direct URL extractor</h1>
       <p>// 18 platforms · runs in your browser · no server, no tracking.</p>
     </section>
+
+    <!-- file:// banner -->
+    <div class="file-protocol-banner" id="fileBanner">
+      <b>⚠ Opened via <code>file://</code></b> — the browser blocks the Web Worker, IndexedDB caching, and most cross-origin fetches under this protocol. <b>Transcription will not work.</b><br>
+      Serve the directory over HTTP instead: <code>cd</code> into the repo, run <code>npm run web</code>, then open <code>http://localhost:8080/example.html</code>.
+    </div>
 
     <!-- INPUT PANEL -->
     <div class="panel" id="panel">
@@ -1209,7 +1238,7 @@
               <a class="btn" href="${escapeHtml(it.url)}" target="_blank" rel="noopener">open</a>
               <button class="btn copyBtn" type="button" data-url="${escapeHtml(it.url)}">copy</button>
               ${it.kind === 'video' || it.kind === 'audio' || it.kind === 'file'
-                ? `<button class="btn script scriptBtn" type="button" data-url="${escapeHtml(it.url)}" data-title="${escapeHtml(String(it.title).slice(0, 60))}">script</button>`
+                ? `<button class="btn script scriptBtn" type="button" data-url="${escapeHtml(it.url)}" data-title="${escapeHtml(String(it.title).slice(0, 60))}"${location.protocol === 'file:' ? ' disabled title="serve via http to enable"' : ''}>script</button>`
                 : ''}
             </div>
           </div>`;
@@ -1301,6 +1330,24 @@
     })();
 
     // ====================================================================
+    // Detect file:// — Whisper / Worker / IndexedDB all fail under it.
+    // ====================================================================
+    (function fileProtocolWarn() {
+      if (location.protocol !== 'file:') return;
+      const banner = document.getElementById('fileBanner');
+      if (banner) banner.classList.add('active');
+      // Disable transcript inputs so the user can't even try.
+      requestAnimationFrame(() => {
+        const ids = ['btnTranscribe', 'btnExtract', 'txRun', 'txFile'];
+        for (const id of ids) {
+          const el = document.getElementById(id);
+          if (el) el.disabled = true;
+        }
+        document.querySelectorAll('.scriptBtn').forEach((b) => { b.disabled = true; });
+      });
+    })();
+
+    // ====================================================================
     // Transcript panel · in-browser Whisper via @huggingface/transformers
     // ====================================================================
     (function transcriptPanel() {
@@ -1318,7 +1365,11 @@
       const txDownload = document.getElementById('txDownload');
       const txDlSrt    = document.getElementById('txDownloadSrt');
 
-      const TRANSFORMERS_URL = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.0';
+      // Use the `/+esm` jsDelivr endpoint — it returns a real ESM module
+      // without the 302 redirect that the bare path issues. Cross-origin
+      // redirects of the top-level worker script (or its imports) are
+      // refused by Chrome and Firefox under stricter modes.
+      const TRANSFORMERS_URL = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.0/+esm';
 
       let busy = false;
       let lastResult = null;
