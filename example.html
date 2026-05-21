@@ -510,6 +510,123 @@
       border-color: var(--ink);
     }
     .btn.primary:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .btn.script {
+      background: var(--accent-soft);
+      border-color: var(--accent-soft);
+      color: var(--accent);
+    }
+    .btn.script:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .btn:disabled { opacity: .55; cursor: not-allowed; }
+
+    /* ----- Transcript panel ---------------------------------- */
+    .tx-panel {
+      margin-top: 14px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      overflow: hidden;
+    }
+    .tx-head {
+      padding: 10px 14px;
+      background: var(--surface-2);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 10px;
+      font-family: var(--mono);
+      font-size: 11.5px;
+      color: var(--muted);
+      letter-spacing: .04em;
+    }
+    .tx-head .label::before {
+      content: "▸ ";
+      color: var(--accent);
+    }
+    .tx-head .status { margin-left: auto; font-size: 11px; }
+    .tx-head .status.err { color: var(--err); }
+    .tx-head .status.ok { color: var(--ok); }
+
+    .tx-controls {
+      display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      font-family: var(--mono);
+      font-size: 11.5px;
+    }
+    .tx-controls label { color: var(--muted); display: inline-flex; gap: 6px; align-items: center; }
+    .tx-controls select,
+    .tx-controls input[type="text"],
+    .tx-controls input[type="file"] {
+      padding: 5px 8px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: var(--surface);
+      color: var(--ink);
+      font-family: var(--mono);
+      font-size: 11.5px;
+    }
+    .tx-controls input[type="text"] { width: 100px; }
+    .tx-controls select:focus,
+    .tx-controls input:focus { outline: none; border-color: var(--accent); }
+
+    .tx-progress {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+      background: var(--surface-2);
+      display: none;
+    }
+    .tx-progress.active { display: block; }
+    .tx-progress .bar {
+      margin-top: 6px;
+      height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .tx-progress .bar > div {
+      height: 100%;
+      background: var(--accent);
+      width: 0%;
+      transition: width .2s;
+    }
+
+    .tx-output {
+      padding: 14px 16px;
+      font-family: var(--mono);
+      font-size: 12.5px;
+      line-height: 1.65;
+      color: var(--ink);
+      max-height: 420px;
+      overflow: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .tx-output.empty {
+      color: var(--muted);
+      text-align: center;
+      padding: 28px 16px;
+      font-size: 12px;
+    }
+    .tx-output .seg {
+      display: block;
+      padding: 4px 0;
+      border-bottom: 1px dashed var(--border);
+    }
+    .tx-output .seg:last-child { border-bottom: 0; }
+    .tx-output .seg .ts {
+      display: inline-block;
+      color: var(--muted);
+      font-size: 10.5px;
+      margin-right: 8px;
+      min-width: 56px;
+    }
+    .tx-foot {
+      padding: 8px 14px;
+      border-top: 1px solid var(--border);
+      background: var(--surface-2);
+      display: flex; gap: 8px; flex-wrap: wrap;
+    }
 
     /* ----- Raw JSON drawer ----------------------------------- */
     .raw {
@@ -693,6 +810,51 @@
       <summary>raw API response</summary>
       <pre id="raw"></pre>
     </details>
+
+    <!-- TRANSCRIPT -->
+    <div class="section-head">
+      <h2>Transcript</h2>
+      <span class="line"></span>
+      <span class="meta">Whisper runs in your browser — no key, no upload</span>
+    </div>
+
+    <div class="tx-panel" id="txPanel">
+      <div class="tx-head">
+        <span class="label">whisper · transformers.js</span>
+        <span class="status" id="txStatus">click <b>script</b> on any video/audio above, or pick a file →</span>
+      </div>
+
+      <div class="tx-controls">
+        <label>model
+          <select id="txModel">
+            <option value="Xenova/whisper-tiny">tiny · ~75 MB · multilingual</option>
+            <option value="Xenova/whisper-base">base · ~145 MB · better</option>
+            <option value="Xenova/whisper-small">small · ~470 MB · best</option>
+            <option value="Xenova/whisper-tiny.en">tiny.en · ~40 MB · English only</option>
+          </select>
+        </label>
+        <label>lang
+          <input id="txLang" type="text" placeholder="auto" />
+        </label>
+        <label>or file
+          <input id="txFile" type="file" accept="audio/*,video/*" />
+        </label>
+        <button id="txClear" class="btn" type="button" style="margin-left:auto">clear</button>
+      </div>
+
+      <div class="tx-progress" id="txProgress">
+        <span id="txProgressMsg">…</span>
+        <div class="bar"><div id="txProgressBar"></div></div>
+      </div>
+
+      <div class="tx-output empty" id="txOutput">no transcript yet</div>
+
+      <div class="tx-foot">
+        <button id="txCopy" class="btn" type="button" disabled>copy text</button>
+        <button id="txDownload" class="btn" type="button" disabled>download .txt</button>
+        <button id="txDownloadSrt" class="btn" type="button" disabled>download .srt</button>
+      </div>
+    </div>
 
     <!-- CATALOGUE -->
     <div class="section-head">
@@ -921,6 +1083,9 @@
               <a class="btn primary" href="${escapeHtml(it.url)}" target="_blank" rel="noopener" download>save</a>
               <a class="btn" href="${escapeHtml(it.url)}" target="_blank" rel="noopener">open</a>
               <button class="btn copyBtn" type="button" data-url="${escapeHtml(it.url)}">copy</button>
+              ${it.kind === 'video' || it.kind === 'audio' || it.kind === 'file'
+                ? `<button class="btn script scriptBtn" type="button" data-url="${escapeHtml(it.url)}" data-title="${escapeHtml(String(it.title).slice(0, 60))}">script</button>`
+                : ''}
             </div>
           </div>`;
         resultsEl.appendChild(el);
@@ -1008,6 +1173,273 @@
       urlInput.placeholder = placeholderFor(platformSel.value);
       markActive();
       if (u) { urlInput.value = u; run(); }
+    })();
+
+    // ====================================================================
+    // Transcript panel · in-browser Whisper via @huggingface/transformers
+    // ====================================================================
+    (function transcriptPanel() {
+      const txPanel    = document.getElementById('txPanel');
+      const txStatus   = document.getElementById('txStatus');
+      const txModelSel = document.getElementById('txModel');
+      const txLang     = document.getElementById('txLang');
+      const txFile     = document.getElementById('txFile');
+      const txClear    = document.getElementById('txClear');
+      const txProgress = document.getElementById('txProgress');
+      const txProgMsg  = document.getElementById('txProgressMsg');
+      const txProgBar  = document.getElementById('txProgressBar');
+      const txOutput   = document.getElementById('txOutput');
+      const txCopy     = document.getElementById('txCopy');
+      const txDownload = document.getElementById('txDownload');
+      const txDlSrt    = document.getElementById('txDownloadSrt');
+
+      const TRANSFORMERS_URL = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.0';
+
+      let transformersMod = null;
+      let cachedPipeline = null;
+      let cachedModelId = null;
+      let busy = false;
+      let lastResult = null;
+      let lastTitle = 'transcript';
+
+      function setStatus(msg, cls) {
+        txStatus.innerHTML = msg;
+        txStatus.className = 'status' + (cls ? ' ' + cls : '');
+      }
+
+      function showProgress(msg, pct) {
+        txProgress.classList.add('active');
+        txProgMsg.textContent = msg;
+        if (typeof pct === 'number') txProgBar.style.width = Math.max(0, Math.min(100, pct)) + '%';
+      }
+      function hideProgress() {
+        txProgress.classList.remove('active');
+        txProgBar.style.width = '0%';
+      }
+
+      async function loadTransformers() {
+        if (transformersMod) return transformersMod;
+        setStatus('loading transformers.js…');
+        transformersMod = await import(/* @vite-ignore */ TRANSFORMERS_URL);
+        // Cache models in IndexedDB (default) and use single-threaded WASM if SharedArrayBuffer is unavailable.
+        transformersMod.env.allowLocalModels = false;
+        return transformersMod;
+      }
+
+      async function getPipeline(modelId) {
+        if (cachedPipeline && cachedModelId === modelId) return cachedPipeline;
+        const tf = await loadTransformers();
+        showProgress(`fetching model ${modelId}…`, 0);
+        cachedPipeline = await tf.pipeline('automatic-speech-recognition', modelId, {
+          progress_callback: (p) => {
+            if (p.status === 'progress' && p.total) {
+              const pct = (p.loaded / p.total) * 100;
+              showProgress(`${p.file || p.name || 'model'} · ${(p.loaded/1024/1024).toFixed(1)}/${(p.total/1024/1024).toFixed(1)} MB`, pct);
+            } else if (p.status === 'ready') {
+              showProgress('model ready', 100);
+            } else if (p.status === 'initiate' || p.status === 'download') {
+              showProgress(`${p.status}: ${p.file || p.name || ''}`, 0);
+            }
+          },
+        });
+        cachedModelId = modelId;
+        hideProgress();
+        return cachedPipeline;
+      }
+
+      async function decodeAudio(blob) {
+        const buf = await blob.arrayBuffer();
+        // Whisper expects 16 kHz mono float32.
+        const ACtor = window.AudioContext || window.webkitAudioContext;
+        const ctx = new ACtor({ sampleRate: 16000 });
+        try {
+          const decoded = await ctx.decodeAudioData(buf.slice(0));
+          let audio;
+          if (decoded.numberOfChannels === 1) {
+            audio = decoded.getChannelData(0);
+          } else {
+            const l = decoded.getChannelData(0);
+            const r = decoded.getChannelData(1);
+            audio = new Float32Array(l.length);
+            for (let i = 0; i < audio.length; i++) audio[i] = (l[i] + r[i]) / 2;
+          }
+          return audio;
+        } finally {
+          try { ctx.close(); } catch { /* ignore */ }
+        }
+      }
+
+      async function fetchMediaBlob(url, onProg) {
+        // CORS will block many social CDNs. Try anyway; caller catches.
+        const res = await fetch(url, { mode: 'cors' });
+        if (!res.ok) throw new Error(`HTTP ${res.status} fetching media`);
+        const total = Number(res.headers.get('content-length') || 0);
+        if (!total || !res.body || !res.body.getReader) return await res.blob();
+        const reader = res.body.getReader();
+        const chunks = [];
+        let received = 0;
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+          received += value.byteLength;
+          if (onProg) onProg(received, total);
+        }
+        return new Blob(chunks, { type: res.headers.get('content-type') || 'application/octet-stream' });
+      }
+
+      function fmtTime(s) {
+        if (s == null) return '';
+        const ss = Math.max(0, s | 0);
+        const mm = (ss / 60) | 0;
+        const sec = ss - mm * 60;
+        return `${String(mm).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+      }
+
+      function renderTranscript(result) {
+        lastResult = result;
+        txOutput.classList.remove('empty');
+        const chunks = result.chunks || [];
+        if (chunks.length) {
+          txOutput.innerHTML = chunks.map((c) => {
+            const t0 = c.timestamp && c.timestamp[0];
+            const ts = t0 != null ? `<span class="ts">${fmtTime(t0)}</span>` : '';
+            return `<span class="seg">${ts}${escapeHtml(c.text || '')}</span>`;
+          }).join('');
+        } else {
+          txOutput.textContent = result.text || '(empty)';
+        }
+        txCopy.disabled = false;
+        txDownload.disabled = false;
+        txDlSrt.disabled = !chunks.length;
+      }
+
+      function srtFrom(chunks) {
+        const pad = (n, w = 2) => String(n).padStart(w, '0');
+        const fmt = (s) => {
+          const ms = Math.round((s - Math.floor(s)) * 1000);
+          const total = Math.floor(s);
+          const h = (total / 3600) | 0;
+          const m = ((total % 3600) / 60) | 0;
+          const sec = total % 60;
+          return `${pad(h)}:${pad(m)}:${pad(sec)},${pad(ms, 3)}`;
+        };
+        return chunks.map((c, i) => {
+          const [a, b] = c.timestamp || [0, 0];
+          return `${i + 1}\n${fmt(a || 0)} --> ${fmt(b || a || 0)}\n${(c.text || '').trim()}\n`;
+        }).join('\n');
+      }
+
+      function downloadBlob(filename, blob) {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 100);
+      }
+
+      async function transcribe(blob, sourceLabel) {
+        if (busy) { setStatus('still working on the previous one…', 'err'); return; }
+        busy = true;
+        lastTitle = (sourceLabel || 'transcript').replace(/[^\w.一-龥\- ]+/g, '_').slice(0, 60) || 'transcript';
+        try {
+          const modelId = txModelSel.value;
+          const pipe = await getPipeline(modelId);
+          setStatus('decoding audio…');
+          const audio = await decodeAudio(blob);
+          setStatus(`transcribing ${(audio.length / 16000).toFixed(1)}s of audio…`);
+          showProgress('running Whisper (no further progress while inferring)', 100);
+          const lang = txLang.value.trim();
+          const result = await pipe(audio, {
+            language: lang || undefined,
+            task: 'transcribe',
+            return_timestamps: true,
+            chunk_length_s: 30,
+            stride_length_s: 5,
+          });
+          hideProgress();
+          renderTranscript(result);
+          setStatus('done', 'ok');
+          txPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } catch (err) {
+          hideProgress();
+          setStatus(escapeHtml(String(err && err.message || err)), 'err');
+          throw err;
+        } finally {
+          busy = false;
+        }
+      }
+
+      async function transcribeFromUrl(url, title) {
+        try {
+          setStatus('fetching media (may fail if CORS-blocked)…');
+          showProgress('downloading…', 0);
+          const blob = await fetchMediaBlob(url, (got, total) => {
+            const pct = total ? (got / total) * 100 : 0;
+            showProgress(`downloading · ${(got/1024/1024).toFixed(1)} / ${(total/1024/1024).toFixed(1)} MB`, pct);
+          });
+          await transcribe(blob, title);
+        } catch (err) {
+          hideProgress();
+          setStatus(
+            `fetch blocked — likely CORS. Click <b>save</b> on the card, then drop the file into the <i>file</i> picker above. (${escapeHtml(err.message || String(err))})`,
+            'err'
+          );
+        }
+      }
+
+      // Wire up the script buttons on result cards.
+      resultsEl.addEventListener('click', async (e) => {
+        const btn = e.target.closest('.scriptBtn');
+        if (!btn) return;
+        e.preventDefault();
+        btn.disabled = true;
+        const original = btn.textContent;
+        btn.textContent = '…';
+        try {
+          await transcribeFromUrl(btn.dataset.url, btn.dataset.title);
+        } finally {
+          btn.disabled = false;
+          btn.textContent = original;
+        }
+      });
+
+      // File upload fallback.
+      txFile.addEventListener('change', async () => {
+        const f = txFile.files && txFile.files[0];
+        if (!f) return;
+        await transcribe(f, f.name.replace(/\.[^.]+$/, ''));
+      });
+
+      // Foot buttons.
+      txCopy.addEventListener('click', async () => {
+        if (!lastResult) return;
+        const text = (lastResult.chunks || []).map((c) => c.text).join('').trim() || lastResult.text || '';
+        try {
+          await navigator.clipboard.writeText(text);
+          const t = txCopy.textContent; txCopy.textContent = 'copied ✓';
+          setTimeout(() => txCopy.textContent = t, 1100);
+        } catch { setStatus('clipboard blocked', 'err'); }
+      });
+      txDownload.addEventListener('click', () => {
+        if (!lastResult) return;
+        const text = (lastResult.chunks || []).map((c) => c.text).join('').trim() || lastResult.text || '';
+        downloadBlob(`${lastTitle}.txt`, new Blob([text], { type: 'text/plain;charset=utf-8' }));
+      });
+      txDlSrt.addEventListener('click', () => {
+        if (!lastResult || !lastResult.chunks) return;
+        downloadBlob(`${lastTitle}.srt`, new Blob([srtFrom(lastResult.chunks)], { type: 'application/x-subrip;charset=utf-8' }));
+      });
+      txClear.addEventListener('click', () => {
+        lastResult = null;
+        txOutput.className = 'tx-output empty';
+        txOutput.textContent = 'no transcript yet';
+        txCopy.disabled = true; txDownload.disabled = true; txDlSrt.disabled = true;
+        txFile.value = '';
+        setStatus('cleared');
+        hideProgress();
+      });
     })();
   </script>
 </body>
