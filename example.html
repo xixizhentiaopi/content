@@ -578,9 +578,10 @@
       font-family: var(--mono);
       font-size: 11.5px;
       cursor: pointer;
-      min-width: 220px;
+      min-width: 140px;
       transition: border-color .12s;
     }
+    .tx-select.wide select { min-width: 220px; }
     .tx-select select:hover { border-color: var(--border-2); }
     .tx-select select:focus { outline: none; border-color: var(--accent); }
     .tx-select::after {
@@ -922,7 +923,7 @@
       <div class="tx-controls">
         <div class="field">
           <span class="k">model</span>
-          <div class="tx-select">
+          <div class="tx-select wide">
             <select id="txModel">
               <option value="Xenova/whisper-tiny">tiny · ~75 MB · multilingual</option>
               <option value="Xenova/whisper-base">base · ~145 MB · better</option>
@@ -933,7 +934,26 @@
         </div>
         <div class="field">
           <span class="k">lang</span>
-          <input id="txLang" type="text" placeholder="auto" />
+          <div class="tx-select">
+            <select id="txLang">
+              <option value="">auto-detect</option>
+              <option value="chinese">中文</option>
+              <option value="english">English</option>
+              <option value="japanese">日本語</option>
+              <option value="korean">한국어</option>
+              <option value="cantonese">粤语 / Cantonese</option>
+              <option value="spanish">Español</option>
+              <option value="french">Français</option>
+              <option value="german">Deutsch</option>
+              <option value="russian">Русский</option>
+              <option value="arabic">العربية</option>
+              <option value="portuguese">Português</option>
+              <option value="italian">Italiano</option>
+              <option value="hindi">हिन्दी</option>
+              <option value="vietnamese">Tiếng Việt</option>
+              <option value="thai">ไทย</option>
+            </select>
+          </div>
         </div>
         <div class="field">
           <span class="k">or file</span>
@@ -1400,6 +1420,35 @@
         });
       }
 
+      // Whisper expects full-name languages ("chinese", not "zh"). Be forgiving
+      // about ISO codes and common aliases users might type.
+      const LANG_ALIASES = {
+        zh: 'chinese', 'zh-cn': 'chinese', 'zh-tw': 'chinese', cn: 'chinese', cmn: 'chinese',
+        en: 'english', 'en-us': 'english', 'en-gb': 'english',
+        ja: 'japanese', jp: 'japanese',
+        ko: 'korean', kr: 'korean',
+        yue: 'cantonese', 'zh-hk': 'cantonese',
+        es: 'spanish', fr: 'french', de: 'german', ru: 'russian',
+        ar: 'arabic', pt: 'portuguese', it: 'italian', hi: 'hindi',
+        vi: 'vietnamese', th: 'thai', id: 'indonesian', tr: 'turkish',
+        nl: 'dutch', pl: 'polish', uk: 'ukrainian',
+      };
+      function normalizeLang(v) {
+        if (!v) return '';
+        const k = String(v).toLowerCase();
+        return LANG_ALIASES[k] || k;
+      }
+
+      // Default the lang picker to the browser's primary language when supported.
+      (function applyLocaleDefault() {
+        const sel = document.getElementById('txLang');
+        if (!sel) return;
+        const guess = normalizeLang((navigator.language || '').toLowerCase());
+        if (guess && [...sel.options].some((o) => o.value === guess)) {
+          sel.value = guess;
+        }
+      })();
+
       function handleProgress(p) {
         if (!p) return;
         if (p.status === 'progress' && p.total) {
@@ -1546,9 +1595,9 @@
           const audio = await decodeAudio(blob);
           const seconds = (audio.length / 16000).toFixed(1);
           const device = (loadRes && loadRes.device) || 'wasm';
-          setStatus(`transcribing ${seconds}s of audio in worker · device: ${device}…`);
+          const lang = normalizeLang(txLang.value.trim());
+          setStatus(`transcribing ${seconds}s · ${device}${lang ? ` · ${lang}` : ' · auto-lang'}…`);
           showProgress(`running Whisper · ${device} · page stays responsive`, 100);
-          const lang = txLang.value.trim();
           const result = await callWorker('transcribe', {
             audio,
             options: {
