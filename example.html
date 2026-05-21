@@ -1300,9 +1300,6 @@
 
       const TRANSFORMERS_URL = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.0';
 
-      let transformersMod = null;
-      let cachedPipeline = null;
-      let cachedModelId = null;
       let busy = false;
       let lastResult = null;
       let lastTitle = 'transcript';
@@ -1311,6 +1308,111 @@
       let stagedBlob = null;
       let stagedTitle = null;
       let stagedSource = null;       // 'file' | 'url'
+
+      // ---- Web Worker so heavy ML inference never blocks the UI thread ----
+      let worker = null;
+      let workerModelId = null;
+      const pendingCalls = new Map();
+      let nextCallId = 0;
+
+      function buildWorker() {
+        const src = `
+          import { pipeline, env } from ${JSON.stringify(TRANSFORMERS_URL)};
+          env.allowLocalModels = false;
+
+          let pipe = null;
+          let currentModelId = null;
+
+          async function load(modelId, device) {
+            if (pipe && currentModelId === modelId) return { device: currentDevice };
+            currentModelId = modelId;
+            currentDevice = device;
+            try {
+              pipe = await pipeline('automatic-speech-recognition', modelId, {
+                device,
+                dtype: device === 'webgpu' ? 'fp32' : undefined,
+                progress_callback: (p) => self.postMessage({ type: 'progress', payload: p }),
+              });
+              return { device };
+            } catch (err) {
+              if (device === 'webgpu') {
+                // Fall back to WASM if WebGPU init fails.
+                self.postMessage({ type: 'progress', payload: { status: 'fallback', from: 'webgpu', to: 'wasm', error: String(err && err.message || err) } });
+                pipe = await pipeline('automatic-speech-recognition', modelId, {
+                  device: 'wasm',
+                  progress_callback: (p) => self.postMessage({ type: 'progress', payload: p }),
+                });
+                currentDevice = 'wasm';
+                return { device: 'wasm' };
+              }
+              throw err;
+            }
+          }
+
+          let currentDevice = null;
+
+          async function run(audio, options) {
+            return await pipe(audio, options);
+          }
+
+          self.onmessage = async (e) => {
+            const { id, type, payload } = e.data;
+            try {
+              let result;
+              if (type === 'load')           result = await load(payload.modelId, payload.device);
+              else if (type === 'transcribe') result = await run(payload.audio, payload.options);
+              else throw new Error('unknown message ' + type);
+              self.postMessage({ id, type: 'done', payload: result });
+            } catch (err) {
+              self.postMessage({ id, type: 'error', payload: String(err && err.message || err) });
+            }
+          };
+        `;
+        const url = URL.createObjectURL(new Blob([src], { type: 'application/javascript' }));
+        const w = new Worker(url, { type: 'module' });
+        w.onmessage = (e) => {
+          const { id, type, payload } = e.data;
+          if (type === 'progress') { handleProgress(payload); return; }
+          const r = pendingCalls.get(id);
+          if (!r) return;
+          pendingCalls.delete(id);
+          if (type === 'error') r.reject(new Error(payload));
+          else r.resolve(payload);
+        };
+        w.onerror = (e) => {
+          // Surface worker boot errors (CSP, CORS, syntax).
+          setStatus('worker error: ' + escapeHtml(e.message || 'unknown'), 'err');
+        };
+        return w;
+      }
+
+      function getWorker() {
+        if (!worker) worker = buildWorker();
+        return worker;
+      }
+
+      function callWorker(type, payload, transferList) {
+        const w = getWorker();
+        const id = ++nextCallId;
+        return new Promise((resolve, reject) => {
+          pendingCalls.set(id, { resolve, reject });
+          w.postMessage({ id, type, payload }, transferList || []);
+        });
+      }
+
+      function handleProgress(p) {
+        if (!p) return;
+        if (p.status === 'progress' && p.total) {
+          const pct = (p.loaded / p.total) * 100;
+          showProgress(`${p.file || p.name || 'model'} · ${(p.loaded/1024/1024).toFixed(1)}/${(p.total/1024/1024).toFixed(1)} MB`, pct);
+        } else if (p.status === 'ready') {
+          showProgress('model ready', 100);
+        } else if (p.status === 'initiate' || p.status === 'download') {
+          showProgress(`${p.status}: ${p.file || p.name || ''}`, 0);
+        } else if (p.status === 'fallback') {
+          setStatus(`webgpu init failed (${escapeHtml(p.error || '')}); falling back to WASM…`, 'err');
+        }
+      }
 
       function setStatus(msg, cls) {
         txStatus.innerHTML = msg;
@@ -1327,34 +1429,15 @@
         txProgBar.style.width = '0%';
       }
 
-      async function loadTransformers() {
-        if (transformersMod) return transformersMod;
-        setStatus('loading transformers.js…');
-        transformersMod = await import(/* @vite-ignore */ TRANSFORMERS_URL);
-        // Cache models in IndexedDB (default) and use single-threaded WASM if SharedArrayBuffer is unavailable.
-        transformersMod.env.allowLocalModels = false;
-        return transformersMod;
-      }
-
-      async function getPipeline(modelId) {
-        if (cachedPipeline && cachedModelId === modelId) return cachedPipeline;
-        const tf = await loadTransformers();
-        showProgress(`fetching model ${modelId}…`, 0);
-        cachedPipeline = await tf.pipeline('automatic-speech-recognition', modelId, {
-          progress_callback: (p) => {
-            if (p.status === 'progress' && p.total) {
-              const pct = (p.loaded / p.total) * 100;
-              showProgress(`${p.file || p.name || 'model'} · ${(p.loaded/1024/1024).toFixed(1)}/${(p.total/1024/1024).toFixed(1)} MB`, pct);
-            } else if (p.status === 'ready') {
-              showProgress('model ready', 100);
-            } else if (p.status === 'initiate' || p.status === 'download') {
-              showProgress(`${p.status}: ${p.file || p.name || ''}`, 0);
-            }
-          },
-        });
-        cachedModelId = modelId;
+      async function loadModelInWorker(modelId) {
+        if (workerModelId === modelId) return;
+        const wantedDevice = ('gpu' in navigator) ? 'webgpu' : 'wasm';
+        setStatus(`loading model ${modelId} (${wantedDevice})…`);
+        showProgress(`fetching ${modelId}…`, 0);
+        const res = await callWorker('load', { modelId, device: wantedDevice });
+        workerModelId = modelId;
         hideProgress();
-        return cachedPipeline;
+        return res;
       }
 
       async function decodeAudio(blob) {
@@ -1458,22 +1541,27 @@
         lastTitle = (sourceLabel || 'transcript').replace(/[^\w.一-龥\- ]+/g, '_').slice(0, 60) || 'transcript';
         try {
           const modelId = txModelSel.value;
-          const pipe = await getPipeline(modelId);
+          const loadRes = await loadModelInWorker(modelId);
           setStatus('decoding audio…');
           const audio = await decodeAudio(blob);
-          setStatus(`transcribing ${(audio.length / 16000).toFixed(1)}s of audio…`);
-          showProgress('running Whisper (no further progress while inferring)', 100);
+          const seconds = (audio.length / 16000).toFixed(1);
+          const device = (loadRes && loadRes.device) || 'wasm';
+          setStatus(`transcribing ${seconds}s of audio in worker · device: ${device}…`);
+          showProgress(`running Whisper · ${device} · page stays responsive`, 100);
           const lang = txLang.value.trim();
-          const result = await pipe(audio, {
-            language: lang || undefined,
-            task: 'transcribe',
-            return_timestamps: true,
-            chunk_length_s: 30,
-            stride_length_s: 5,
-          });
+          const result = await callWorker('transcribe', {
+            audio,
+            options: {
+              language: lang || undefined,
+              task: 'transcribe',
+              return_timestamps: true,
+              chunk_length_s: 30,
+              stride_length_s: 5,
+            },
+          }, [audio.buffer]);
           hideProgress();
           renderTranscript(result);
-          setStatus('done', 'ok');
+          setStatus(`done · ${seconds}s of audio · ${device}`, 'ok');
           txPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
         } catch (err) {
           hideProgress();
