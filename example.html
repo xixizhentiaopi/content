@@ -545,27 +545,114 @@
     .tx-head .status.ok { color: var(--ok); }
 
     .tx-controls {
-      display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+      display: flex; gap: 14px; align-items: center; flex-wrap: wrap;
       padding: 10px 14px;
       border-bottom: 1px solid var(--border);
       font-family: var(--mono);
       font-size: 11.5px;
     }
-    .tx-controls label { color: var(--muted); display: inline-flex; gap: 6px; align-items: center; }
-    .tx-controls select,
-    .tx-controls input[type="text"],
-    .tx-controls input[type="file"] {
-      padding: 5px 8px;
+    .tx-controls .field {
+      display: inline-flex; align-items: center; gap: 8px;
+      color: var(--muted);
+    }
+    .tx-controls .field > .k {
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      font-size: 10px;
+      color: var(--muted-2);
+    }
+
+    /* select — custom chevron, no native look */
+    .tx-select {
+      position: relative;
+      display: inline-block;
+    }
+    .tx-select select {
+      appearance: none;
+      -webkit-appearance: none;
+      padding: 6px 28px 6px 10px;
       border: 1px solid var(--border);
       border-radius: 4px;
       background: var(--surface);
       color: var(--ink);
       font-family: var(--mono);
       font-size: 11.5px;
+      cursor: pointer;
+      min-width: 220px;
+      transition: border-color .12s;
     }
-    .tx-controls input[type="text"] { width: 100px; }
-    .tx-controls select:focus,
-    .tx-controls input:focus { outline: none; border-color: var(--accent); }
+    .tx-select select:hover { border-color: var(--border-2); }
+    .tx-select select:focus { outline: none; border-color: var(--accent); }
+    .tx-select::after {
+      content: "";
+      position: absolute;
+      right: 10px; top: 50%;
+      width: 7px; height: 7px;
+      border-right: 1.5px solid var(--muted);
+      border-bottom: 1.5px solid var(--muted);
+      transform: translateY(-70%) rotate(45deg);
+      pointer-events: none;
+    }
+    .tx-select:hover::after { border-color: var(--ink-2); }
+
+    /* text input */
+    .tx-controls input[type="text"] {
+      width: 80px;
+      padding: 6px 10px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: var(--surface);
+      color: var(--ink);
+      font-family: var(--mono);
+      font-size: 11.5px;
+      transition: border-color .12s;
+    }
+    .tx-controls input[type="text"]:hover { border-color: var(--border-2); }
+    .tx-controls input[type="text"]:focus { outline: none; border-color: var(--accent); }
+    .tx-controls input[type="text"]::placeholder { color: var(--muted-2); }
+
+    /* file input — hide native, show custom */
+    .tx-file {
+      display: inline-flex;
+      align-items: stretch;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      overflow: hidden;
+      background: var(--surface);
+      transition: border-color .12s;
+      cursor: pointer;
+    }
+    .tx-file:hover { border-color: var(--border-2); }
+    .tx-file:focus-within { border-color: var(--accent); }
+    .tx-file input[type="file"] {
+      position: absolute;
+      width: 1px; height: 1px;
+      opacity: 0;
+      pointer-events: none;
+    }
+    .tx-file .btn-pick {
+      padding: 6px 12px;
+      background: var(--surface-2);
+      color: var(--ink-2);
+      border-right: 1px solid var(--border);
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: .04em;
+      white-space: nowrap;
+    }
+    .tx-file:hover .btn-pick { background: var(--accent-soft); color: var(--accent); }
+    .tx-file .filename {
+      padding: 6px 12px;
+      font-family: var(--mono);
+      font-size: 11.5px;
+      color: var(--muted);
+      min-width: 140px;
+      max-width: 240px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .tx-file.has-file .filename { color: var(--ink); }
 
     .tx-progress {
       padding: 10px 14px;
@@ -825,20 +912,29 @@
       </div>
 
       <div class="tx-controls">
-        <label>model
-          <select id="txModel">
-            <option value="Xenova/whisper-tiny">tiny · ~75 MB · multilingual</option>
-            <option value="Xenova/whisper-base">base · ~145 MB · better</option>
-            <option value="Xenova/whisper-small">small · ~470 MB · best</option>
-            <option value="Xenova/whisper-tiny.en">tiny.en · ~40 MB · English only</option>
-          </select>
-        </label>
-        <label>lang
+        <div class="field">
+          <span class="k">model</span>
+          <div class="tx-select">
+            <select id="txModel">
+              <option value="Xenova/whisper-tiny">tiny · ~75 MB · multilingual</option>
+              <option value="Xenova/whisper-base">base · ~145 MB · better</option>
+              <option value="Xenova/whisper-small">small · ~470 MB · best</option>
+              <option value="Xenova/whisper-tiny.en">tiny.en · ~40 MB · English only</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <span class="k">lang</span>
           <input id="txLang" type="text" placeholder="auto" />
-        </label>
-        <label>or file
-          <input id="txFile" type="file" accept="audio/*,video/*" />
-        </label>
+        </div>
+        <div class="field">
+          <span class="k">or file</span>
+          <label class="tx-file" id="txFileWrap">
+            <input id="txFile" type="file" accept="audio/*,video/*" />
+            <span class="btn-pick">choose</span>
+            <span class="filename" id="txFileName">no file</span>
+          </label>
+        </div>
         <button id="txClear" class="btn" type="button" style="margin-left:auto">clear</button>
       </div>
 
@@ -1406,9 +1502,17 @@
       });
 
       // File upload fallback.
+      const txFileWrap = document.getElementById('txFileWrap');
+      const txFileName = document.getElementById('txFileName');
       txFile.addEventListener('change', async () => {
         const f = txFile.files && txFile.files[0];
-        if (!f) return;
+        if (!f) {
+          txFileWrap.classList.remove('has-file');
+          txFileName.textContent = 'no file';
+          return;
+        }
+        txFileWrap.classList.add('has-file');
+        txFileName.textContent = f.name;
         await transcribe(f, f.name.replace(/\.[^.]+$/, ''));
       });
 
@@ -1437,6 +1541,8 @@
         txOutput.textContent = 'no transcript yet';
         txCopy.disabled = true; txDownload.disabled = true; txDlSrt.disabled = true;
         txFile.value = '';
+        txFileWrap.classList.remove('has-file');
+        txFileName.textContent = 'no file';
         setStatus('cleared');
         hideProgress();
       });
