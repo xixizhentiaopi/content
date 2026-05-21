@@ -653,6 +653,14 @@
       white-space: nowrap;
     }
     .tx-file.has-file .filename { color: var(--ink); }
+    .tx-file.hl {
+      border-color: var(--accent);
+      animation: tx-pulse 1.2s ease-out 3;
+    }
+    @keyframes tx-pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(41, 98, 255, 0); }
+      50%      { box-shadow: 0 0 0 5px rgba(41, 98, 255, .25); }
+    }
 
     .tx-progress {
       padding: 10px 14px;
@@ -1467,9 +1475,28 @@
         }
       }
 
+      function triggerDownload(url, filenameHint) {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = (filenameHint || 'media') + '.mp4';
+        a.rel = 'noopener';
+        a.target = '_blank';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => a.remove(), 100);
+      }
+
+      function highlightFilePicker() {
+        const wrap = document.getElementById('txFileWrap');
+        if (!wrap) return;
+        wrap.classList.add('hl');
+        wrap.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(() => wrap.classList.remove('hl'), 4500);
+      }
+
       async function transcribeFromUrl(url, title) {
         try {
-          setStatus('fetching media (may fail if CORS-blocked)…');
+          setStatus('fetching media…');
           showProgress('downloading…', 0);
           const blob = await fetchMediaBlob(url, (got, total) => {
             const pct = total ? (got / total) * 100 : 0;
@@ -1478,8 +1505,14 @@
           await transcribe(blob, title);
         } catch (err) {
           hideProgress();
+          // CORS or file:// origin blocked the fetch. Trigger a normal browser
+          // download and steer the user to the file picker.
+          triggerDownload(url, title);
+          highlightFilePicker();
           setStatus(
-            `fetch blocked — likely CORS. Click <b>save</b> on the card, then drop the file into the <i>file</i> picker above. (${escapeHtml(err.message || String(err))})`,
+            '✗ cross-origin fetch blocked (CDN does not send CORS headers). ' +
+            'The file is downloading now — once it finishes, drop it into the highlighted <b>file</b> picker. ' +
+            `(${escapeHtml(err.message || String(err))})`,
             'err'
           );
         }
