@@ -1,5 +1,7 @@
 # btch
 
+**English** · [简体中文](./README.zh-CN.md)
+
 Three front-ends around the [`btch-downloader`](https://www.npmjs.com/package/btch-downloader) npm package:
 
 | Front-end       | File           | What it is                                                                 |
