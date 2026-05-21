@@ -943,7 +943,8 @@
             <span class="filename" id="txFileName">no file</span>
           </label>
         </div>
-        <button id="txClear" class="btn" type="button" style="margin-left:auto">clear</button>
+        <button id="txRun" class="btn primary" type="button" style="margin-left:auto" disabled>run ▶</button>
+        <button id="txClear" class="btn" type="button">clear</button>
       </div>
 
       <div class="tx-progress" id="txProgress">
@@ -1306,6 +1307,11 @@
       let lastResult = null;
       let lastTitle = 'transcript';
 
+      // Staged input, set by file picker or by a successful script-button fetch.
+      let stagedBlob = null;
+      let stagedTitle = null;
+      let stagedSource = null;       // 'file' | 'url'
+
       function setStatus(msg, cls) {
         txStatus.innerHTML = msg;
         txStatus.className = 'status' + (cls ? ' ' + cls : '');
@@ -1446,6 +1452,9 @@
       async function transcribe(blob, sourceLabel) {
         if (busy) { setStatus('still working on the previous one…', 'err'); return; }
         busy = true;
+        txRun.disabled = true;
+        const origRun = txRun.textContent;
+        txRun.textContent = 'running…';
         lastTitle = (sourceLabel || 'transcript').replace(/[^\w.一-龥\- ]+/g, '_').slice(0, 60) || 'transcript';
         try {
           const modelId = txModelSel.value;
@@ -1472,6 +1481,8 @@
           throw err;
         } finally {
           busy = false;
+          txRun.textContent = origRun;
+          txRun.disabled = !stagedBlob;
         }
       }
 
@@ -1494,6 +1505,25 @@
         setTimeout(() => wrap.classList.remove('hl'), 4500);
       }
 
+      const txRun = document.getElementById('txRun');
+
+      function stageBlob(blob, title, source) {
+        stagedBlob = blob;
+        stagedTitle = title || 'transcript';
+        stagedSource = source;
+        txRun.disabled = false;
+        const size = blob ? `${(blob.size / 1024 / 1024).toFixed(1)} MB` : '';
+        const where = source === 'file' ? 'file' : 'fetched';
+        setStatus(`ready · ${where} · ${size} — click <b>run ▶</b> to transcribe`, 'ok');
+      }
+
+      function clearStaged() {
+        stagedBlob = null;
+        stagedTitle = null;
+        stagedSource = null;
+        txRun.disabled = true;
+      }
+
       async function transcribeFromUrl(url, title) {
         try {
           setStatus('fetching media…');
@@ -1502,7 +1532,8 @@
             const pct = total ? (got / total) * 100 : 0;
             showProgress(`downloading · ${(got/1024/1024).toFixed(1)} / ${(total/1024/1024).toFixed(1)} MB`, pct);
           });
-          await transcribe(blob, title);
+          hideProgress();
+          stageBlob(blob, title, 'url');
         } catch (err) {
           hideProgress();
           // CORS or file:// origin blocked the fetch. Trigger a normal browser
@@ -1511,7 +1542,7 @@
           highlightFilePicker();
           setStatus(
             '✗ cross-origin fetch blocked (CDN does not send CORS headers). ' +
-            'The file is downloading now — once it finishes, drop it into the highlighted <b>file</b> picker. ' +
+            'The file is downloading now — once it finishes, drop it into the highlighted <b>file</b> picker, then click <b>run ▶</b>. ' +
             `(${escapeHtml(err.message || String(err))})`,
             'err'
           );
@@ -1534,19 +1565,27 @@
         }
       });
 
-      // File upload fallback.
+      // File upload — stage only, never auto-run.
       const txFileWrap = document.getElementById('txFileWrap');
       const txFileName = document.getElementById('txFileName');
-      txFile.addEventListener('change', async () => {
+      txFile.addEventListener('change', () => {
         const f = txFile.files && txFile.files[0];
         if (!f) {
           txFileWrap.classList.remove('has-file');
           txFileName.textContent = 'no file';
+          clearStaged();
+          setStatus('no file');
           return;
         }
         txFileWrap.classList.add('has-file');
         txFileName.textContent = f.name;
-        await transcribe(f, f.name.replace(/\.[^.]+$/, ''));
+        stageBlob(f, f.name.replace(/\.[^.]+$/, ''), 'file');
+      });
+
+      // Run button — kick off transcription on the staged blob.
+      txRun.addEventListener('click', async () => {
+        if (!stagedBlob || busy) return;
+        await transcribe(stagedBlob, stagedTitle);
       });
 
       // Foot buttons.
@@ -1576,6 +1615,7 @@
         txFile.value = '';
         txFileWrap.classList.remove('has-file');
         txFileName.textContent = 'no file';
+        clearStaged();
         setStatus('cleared');
         hideProgress();
       });

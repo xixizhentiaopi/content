@@ -238,7 +238,10 @@ async function resolveMediaForTranscript(input, platformOverride) {
   const data = await callPlatform(platformId, input);
   const media = dedupe(harvestMedia(data, [], ''));
   if (!media.length) throw new Error(`no downloadable media URL in the ${platformId} response`);
-  const primary = media.find((m) => m.kind === 'video') || media.find((m) => m.kind === 'audio') || media[0];
+  const primary = media.find((m) => m.kind === 'video')
+              || media.find((m) => m.kind === 'audio')
+              || media.find((m) => m.kind !== 'image')
+              || media[0];
   const outDir = path.join(os.tmpdir(), 'btch-transcribe-src', platformId);
   fs.mkdirSync(outDir, { recursive: true });
   const localPath = path.join(outDir, `${sanitize(primary.title || 'media')}-${Date.now()}.${guessExt(primary.url)}`);
